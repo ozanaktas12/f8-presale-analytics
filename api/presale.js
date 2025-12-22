@@ -66,6 +66,11 @@ export default async function handler(req, res) {
       return raw / 1_000_000;
     };
 
+    const weiToEth = (weiHex) => parseInt(weiHex, 16) / 1e18;
+
+    // temporary static ETH price (same assumption as Python)
+    const ETH_USD_PRICE = 3500;
+
     // =====================
     // PARSE EVENTS
     // =====================
@@ -78,20 +83,46 @@ export default async function handler(req, res) {
         .replace("0x", "")
         .match(/.{64}/g);
 
-      const usd = parseUSD(chunks[0]);
       const lockMonths = hexToInt(chunks[2]);
+      let payment = "ETH";
+      let usd = 0;
 
-      // Detect payment method
-      let payment = "UNKNOWN";
+      // 🔍 Fetch ALL logs for this tx (Python-style)
+      const txLogsRes = await fetch(
+        `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionReceipt&txhash=${lg.transactionHash}&apikey=${API_KEY}`
+      );
+      const txLogsJson = await txLogsRes.json();
+      const receiptLogs = txLogsJson.result.logs || [];
 
-      // ERC20 Transfer logs contain token address
-      if (lg.address.toLowerCase() === TOKENS.USDT.toLowerCase()) {
-        payment = "USDT";
-      } else if (lg.address.toLowerCase() === TOKENS.USDC.toLowerCase()) {
-        payment = "USDC";
-      } else {
-        // Presale contract receiving ETH
-        payment = "ETH";
+      // Look for USDT / USDC Transfer
+      for (const rlg of receiptLogs) {
+        if (rlg.topics[0] ===
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        ) {
+          const tokenAddr = rlg.address.toLowerCase();
+
+          if (tokenAddr === TOKENS.USDT.toLowerCase()) {
+            payment = "USDT";
+            usd = parseUSD(rlg.data);
+            break;
+          }
+
+          if (tokenAddr === TOKENS.USDC.toLowerCase()) {
+            payment = "USDC";
+            usd = parseUSD(rlg.data);
+            break;
+          }
+        }
+      }
+
+      // ETH fallback (no stablecoin transfer found)
+      if (payment === "ETH") {
+        const txRes = await fetch(
+          `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${lg.transactionHash}&apikey=${API_KEY}`
+        );
+        const txJson = await txRes.json();
+        const ethAmount = weiToEth(txJson.result.value);
+        usd = ethAmount * ETH_USD_PRICE;
       }
 
       events.push({
