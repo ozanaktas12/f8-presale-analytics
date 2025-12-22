@@ -32,6 +32,4 @@ def kart(x : int, y : int, z : int ):
 
                
 
-   
-
 

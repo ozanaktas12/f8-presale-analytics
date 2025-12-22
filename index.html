@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Presale Analyzer</title>
+  <style>
+    body { font-family: Arial; padding: 40px; }
+    button { padding: 12px 20px; font-size: 16px; cursor: pointer; }
+    pre { background: #111; color: #0f0; padding: 20px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <h1>Presale Live Data</h1>
+  <button onclick="loadData()">Başlat</button>
+
+  <pre id="output">Veri bekleniyor...</pre>
+
+  <script>
+    async function loadData() {
+      document.getElementById("output").textContent = "Veri çekiliyor...";
+
+      try {
+        const res = await fetch("/api/presale");
+        const data = await res.json();
+
+        document.getElementById("output").textContent =
+          JSON.stringify(data, null, 2);
+
+      } catch (err) {
+        document.getElementById("output").textContent = "Hata oluştu!";
+      }
+    }
+  </script>
+
+</body>
+</html>

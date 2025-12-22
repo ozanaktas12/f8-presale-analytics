@@ -38,7 +38,6 @@ class UserLogin(BaseModel):
 
 @app.post("/register", response_model=User)
 def register (user_data: UserCreate):
-
     if user_data.username in users_db:
         raise HTTPException ( Status_code= 400 , detail = "bu kullanıcı zaten var..." )
     
@@ -47,7 +46,7 @@ def register (user_data: UserCreate):
         "age" : user_data.age
     }
 
-    return User(User(username=user_data.username, age= user_data.age))
+    return User(username=user_data.username, age= user_data.age)
 
 @app.post("/login")
 def login(credentials: UserLogin):
@@ -70,7 +69,7 @@ def get_user(username : str):
     user_record = users_db.get(username)
 
     if not user_record:
-        raise HTTPException(status_code = 404 , details = "kullanıcı bulunamadı!")
+        raise HTTPException(status_code = 404 , detail = "kullanıcı bulunamadı!")
 
     return User(username = username, age = user_record["age"])
 
