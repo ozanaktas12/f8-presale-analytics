@@ -21,13 +21,6 @@ export default async function handler(req, res) {
     // =====================
     // CONFIG
     // =====================
-    // Payment tokens (Ethereum mainnet)
-    const TOKENS = {
-      USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-      USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606EB48",
-      ETH: "ETH"
-    };
-
     const CONTRACT = "0x10Cd25B8fA6f97356C82aAb8da039C3D7eF18401";
     const EVENT_TOPIC =
       "0x95cfdb8b2e91654ec715d9403064639685780d9bc570c4c0732886c210481b9f";
@@ -84,45 +77,41 @@ export default async function handler(req, res) {
         .match(/.{64}/g);
 
       const lockMonths = hexToInt(chunks[2]);
-      let payment = "ETH";
+      let payment = "USD";
       let usd = 0;
 
-      // 🔍 Fetch ALL logs for this tx (Python-style)
-      const txLogsRes = await fetch(
-        `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionReceipt&txhash=${lg.transactionHash}&apikey=${API_KEY}`
+      // 1️⃣ Transaction bilgisi (ETH kontrolü için)
+      const txRes = await fetch(
+        `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${lg.transactionHash}&apikey=${API_KEY}`
       );
-      const txLogsJson = await txLogsRes.json();
-      const receiptLogs = txLogsJson.result.logs || [];
+      const txJson = await txRes.json();
 
-      // Look for USDT / USDC Transfer
-      for (const rlg of receiptLogs) {
-        if (rlg.topics[0] ===
-          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-        ) {
-          const tokenAddr = rlg.address.toLowerCase();
+      const ethValue = parseInt(txJson.result.value, 16);
 
-          if (tokenAddr === TOKENS.USDT.toLowerCase()) {
-            payment = "USDT";
-            usd = parseUSD(rlg.data);
-            break;
-          }
+      // 2️⃣ ETH varsa → ETH kabul et
+      if (ethValue > 0) {
+        payment = "ETH";
+        const ethAmount = weiToEth(txJson.result.value);
+        usd = ethAmount * ETH_USD_PRICE;
 
-          if (tokenAddr === TOKENS.USDC.toLowerCase()) {
-            payment = "USDC";
+      } else {
+        // 3️⃣ ETH yoksa → USD (hangi stablecoin olduğu umrumuzda değil)
+        const receiptRes = await fetch(
+          `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionReceipt&txhash=${lg.transactionHash}&apikey=${API_KEY}`
+        );
+        const receiptJson = await receiptRes.json();
+        const receiptLogs = receiptJson.result.logs || [];
+
+        for (const rlg of receiptLogs) {
+          // ERC20 Transfer event
+          if (
+            rlg.topics[0] ===
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+          ) {
             usd = parseUSD(rlg.data);
             break;
           }
         }
-      }
-
-      // ETH fallback (no stablecoin transfer found)
-      if (payment === "ETH") {
-        const txRes = await fetch(
-          `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${lg.transactionHash}&apikey=${API_KEY}`
-        );
-        const txJson = await txRes.json();
-        const ethAmount = weiToEth(txJson.result.value);
-        usd = ethAmount * ETH_USD_PRICE;
       }
 
       events.push({
@@ -141,8 +130,7 @@ export default async function handler(req, res) {
     let totalUsd = 0;
 
     const paymentTotals = {
-      USDT: 0,
-      USDC: 0,
+      USD: 0,
       ETH: 0,
     };
     let totalUsdNoEth = 0;
@@ -180,8 +168,7 @@ export default async function handler(req, res) {
       total_usd: Number(totalUsd.toFixed(2)),
       total_usd_without_eth: Number(totalUsdNoEth.toFixed(2)),
       payment_totals_usd: {
-        USDT: Number(paymentTotals.USDT.toFixed(2)),
-        USDC: Number(paymentTotals.USDC.toFixed(2)),
+        USD: Number(paymentTotals.USD.toFixed(2)),
         ETH: Number(paymentTotals.ETH.toFixed(2)),
       },
       wallets: walletList,
