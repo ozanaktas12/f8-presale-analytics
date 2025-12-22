@@ -36,7 +36,6 @@ const fetchJsonWithRetry = async (url, { tries = 4, timeoutMs = 10_000 } = {}) =
 
       const json = await res.json().catch(() => null);
 
-      // Etherscan sometimes returns status 0 with busy/timeout message
       const isEtherscanBusy =
         json &&
         json.status === "0" &&
@@ -239,12 +238,13 @@ export default async function handler(req, res) {
           totalUsdAll: 0, // ALL wallets (USD decoded from logs)
           totalUsd: 0, // OUR wallets only
 
-          // first-bid (ilk alım)
+          // first-bid (ilk alım) stored in lastUsd for UI compatibility
           lastUsd: 0,
           events: 0,
           lockMonths: [],
           lastLockMonths: null,
           firstBlock: Number.MAX_SAFE_INTEGER,
+          lastBlock: -1, // most recent blockNumber (for sorting newest-first)
           is_ours: isOurWallet,
 
           // ETH info (only computed for our wallets)
@@ -256,12 +256,17 @@ export default async function handler(req, res) {
       }
 
       wallets[e.wallet].events += 1;
+
+      if (e.blockNumber > wallets[e.wallet].lastBlock) {
+        wallets[e.wallet].lastBlock = e.blockNumber;
+      }
+
       wallets[e.wallet].lockMonths.push(e.lockMonths);
 
       // İlk event’i (en küçük blockNumber) first-bid olarak tut
       if (e.blockNumber < wallets[e.wallet].firstBlock) {
         wallets[e.wallet].firstBlock = e.blockNumber;
-        wallets[e.wallet].lastUsd = e.usd; // UI/JSON bozulmasın diye aynı alanı kullanıyoruz
+        wallets[e.wallet].lastUsd = e.usd; // first-bid
         wallets[e.wallet].lastLockMonths = e.lockMonths;
       }
 
@@ -275,7 +280,6 @@ export default async function handler(req, res) {
         overallTotalUsdNoEth += e.usd;
         overallPaymentTotals.USD += e.usd;
 
-        // per-wallet ALL USD sum
         wallets[e.wallet].totalUsdAll += e.usd;
       }
 
@@ -301,8 +305,6 @@ export default async function handler(req, res) {
 
       for (const t of txs) {
         if (!t.tx) continue;
-
-        // Only investigate ETH when decoded USD is 0 (likely ETH payment)
         if (Number(t.usd || 0) > 0) continue;
 
         let txObj = txCache.get(t.tx);
@@ -332,7 +334,19 @@ export default async function handler(req, res) {
     }
 
     // =====================
-    // OUR totals: last-bid vs event-sum
+    // UI-friendly totals per wallet
+    // =====================
+    for (const w of Object.values(wallets)) {
+      const totalAll = Number(w.totalUsdAll || 0);
+      const firstUsd = Number(w.lastUsd || 0); // "first-bid" burada lastUsd içinde
+      const display = totalAll > 0 ? totalAll : firstUsd;
+
+      w.totalUsdDisplay = Number(display.toFixed(2));
+      w.totalUsdIsFallback = !(totalAll > 0) && firstUsd > 0;
+    }
+
+    // =====================
+    // OUR totals: first-bid vs event-sum
     // =====================
     let ourTotalUsdLastBid = 0;
     let ourUniqueWallets = 0;
@@ -348,17 +362,13 @@ export default async function handler(req, res) {
 
     const payload = {
       updated_at: new Date().toISOString(),
-
-      // raw event stats
       total_events: events.length,
       unique_wallets: walletList.length,
 
-      // OVERALL totals (all wallets)
       overall_total_usd: Number(overallTotalUsd.toFixed(2)),
       overall_total_usd_without_eth: Number(overallTotalUsdNoEth.toFixed(2)),
       overall_payment_totals_usd: { USD: Number(overallPaymentTotals.USD.toFixed(2)) },
 
-      // OUR totals (only data_check.txt wallets)
       our_total_usd: Number(ourTotalUsd.toFixed(2)),
       our_total_usd_without_eth: Number(ourTotalUsdNoEth.toFixed(2)),
       our_payment_totals_usd: { USD: Number(ourPaymentTotals.USD.toFixed(2)) },
@@ -368,7 +378,6 @@ export default async function handler(req, res) {
       total_usd_without_eth: Number(ourTotalUsdNoEth.toFixed(2)),
       payment_totals_usd: { USD: Number(ourPaymentTotals.USD.toFixed(2)) },
 
-      // OUR totals (site-style last bid per wallet)
       our_unique_wallets: ourUniqueWallets,
       our_total_usd_last_bid: ourTotalUsdLastBid,
 
@@ -378,9 +387,6 @@ export default async function handler(req, res) {
     __CACHE = { ...__CACHE, at: Date.now(), data: payload };
     return res.status(200).json(payload);
   } catch (err) {
-    return res.status(500).json({
-      error: "Unhandled error",
-      message: err.message,
-    });
+    return res.status(500).json({ error: "Unhandled error", message: err.message });
   }
 }

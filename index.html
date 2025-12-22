@@ -244,10 +244,6 @@
               <option value="all">Hepsi</option>
             </select>
           </span>
-          <label class="toggle">
-            <input type="checkbox" id="hideZero" checked />
-            0 USD olanları gizle
-          </label>
           <input id="search" placeholder="Ara: wallet / lock / usd (örn: 0xabc, 12, 500)" />
           <button class="btnMini" onclick="downloadCsv()">CSV indir</button>
         </div>
@@ -262,8 +258,8 @@
               <th class="right">Events</th>
               <th>Lock Months</th>
               <th class="right">Total USD</th>
-              <th class="right">Last USD</th>
-              <th class="right">Last Lock</th>
+              <th class="right">First USD</th>
+              <th class="right">First Lock</th>
               <th class="right">ETH Tx</th>
               <th class="right">Total ETH</th>
               <th class="right">Actions</th>
@@ -366,25 +362,31 @@
     function renderWallets(d){
       const body = document.getElementById("walletBody");
       const walletFilter = document.getElementById("walletFilter").value; // ours | others | all
-      const hideZero = document.getElementById("hideZero").checked;
       const q = (document.getElementById("search").value || "").trim().toLowerCase();
 
       let rows = (d.wallets || []).slice();
 
-      // default sorts: ours first, then by totalUsd desc, then events desc
+      // default sort: newest sale first (highest lastBlock), then by displayed USD desc
       rows.sort((a,b)=>{
-        const ao = a.is_ours ? 0 : 1;
-        const bo = b.is_ours ? 0 : 1;
-        if (ao !== bo) return ao - bo;
-        const at = Number(a.totalUsd||0), bt = Number(b.totalUsd||0);
-        if (bt !== at) return bt - at;
-        return Number(b.events||0) - Number(a.events||0);
+        const ab = Number(a.lastBlock ?? -1);
+        const bb = Number(b.lastBlock ?? -1);
+        if (bb !== ab) return bb - ab; // newest first
+
+        const aAll = Number((a.totalUsdAll ?? a.totalUsd) || 0);
+        const bAll = Number((b.totalUsdAll ?? b.totalUsd) || 0);
+
+        // Prefer backend totalUsdDisplay if present; otherwise fallback to (totalUsdAll>0 ? totalUsdAll : lastUsd)
+        const aDisp = Number((a.totalUsdDisplay ?? 0) || 0) || (aAll > 0 ? aAll : Number(a.lastUsd || 0));
+        const bDisp = Number((b.totalUsdDisplay ?? 0) || 0) || (bAll > 0 ? bAll : Number(b.lastUsd || 0));
+        if (bDisp !== aDisp) return bDisp - aDisp;
+
+        // final stable tie-breaker
+        return String(a.wallet||"").localeCompare(String(b.wallet||""));
       });
 
       rows = rows.filter(w=>{
         if (walletFilter === "ours" && !w.is_ours) return false;
         if (walletFilter === "others" && w.is_ours) return false;
-        if (hideZero && Number(w.totalUsd||0) <= 0) return false;
 
         if (!q) return true;
 
@@ -393,7 +395,7 @@
           (w.wallet||"").toLowerCase(),
           String(w.events||""),
           locks,
-          String(w.totalUsd||""),
+          String((w.totalUsdAll ?? w.totalUsd) || ""),
           String(w.lastUsd||""),
           String(w.lastLockMonths||""),
           String(w.ethTxCount||""),
@@ -411,11 +413,16 @@
         const wallet = w.wallet || "-";
         const locks = uniqSorted(w.lockMonths);
         const locksText = locks.length ? locks.join(", ") : "-";
-        const totalUsd = Number(w.totalUsd||0);
         const lastUsd = Number(w.lastUsd||0);
         const lastLock = (w.lastLockMonths ?? "-");
         const ethTx = Number(w.ethTxCount||0);
         const totalEth = Number(w.totalEth||0);
+
+        const totalUsdAll = Number((w.totalUsdAll ?? w.totalUsd) || 0);
+
+        // Prefer backend-calculated display fields if present
+        const totalUsdDisplay = Number((w.totalUsdDisplay ?? 0) || 0) || (totalUsdAll > 0 ? totalUsdAll : Number(w.lastUsd || 0));
+        const totalUsdIsFallback = (w.totalUsdIsFallback === true) || (!(totalUsdAll > 0) && Number(w.lastUsd || 0) > 0);
 
         const badge = w.is_ours
           ? `<span class="badge ours">OURS</span>`
@@ -428,7 +435,7 @@
             <td>${badge}</td>
             <td class="right mono">${nfINT.format(w.events||0)}</td>
             <td class="mono">${locksText}</td>
-            <td class="right mono">$${nfUSD.format(totalUsd)}</td>
+            <td class="right mono">${totalUsdIsFallback ? "≈" : ""}$${nfUSD.format(totalUsdDisplay)}</td>
             <td class="right mono">$${nfUSD.format(lastUsd)}</td>
             <td class="right mono">${lastLock}</td>
             <td class="right mono">${nfINT.format(ethTx)}</td>
@@ -444,17 +451,21 @@
 
     function toCsv(rows){
       const header = [
-        "wallet","is_ours","events","lockMonths","totalUsd","lastUsd","lastLockMonths","ethTxCount","totalEth"
+        "wallet","is_ours","events","lockMonths","totalUsdAll","totalUsdDisplay","lastUsd","lastLockMonths","ethTxCount","totalEth"
       ];
       const lines = [header.join(",")];
       for(const w of rows){
         const locks = (w.lockMonths || []).join("|");
+        const totalUsdAll = Number((w.totalUsdAll ?? w.totalUsd) || 0);
+        const totalUsdDisplay = Number((w.totalUsdDisplay ?? 0) || 0) || (totalUsdAll > 0 ? totalUsdAll : Number(w.lastUsd || 0));
+
         const values = [
           w.wallet,
           w.is_ours ? "true":"false",
           w.events ?? 0,
           `"${locks}"`,
-          w.totalUsd ?? 0,
+          totalUsdAll,
+          totalUsdDisplay,
           w.lastUsd ?? 0,
           w.lastLockMonths ?? "",
           w.ethTxCount ?? 0,
@@ -471,21 +482,19 @@
         return;
       }
       const walletFilter = document.getElementById("walletFilter").value; // ours | others | all
-      const hideZero = document.getElementById("hideZero").checked;
       const q = (document.getElementById("search").value || "").trim().toLowerCase();
 
       let rows = (latestData.wallets || []).slice();
       rows = rows.filter(w=>{
         if (walletFilter === "ours" && !w.is_ours) return false;
         if (walletFilter === "others" && w.is_ours) return false;
-        if (hideZero && Number(w.totalUsd||0) <= 0) return false;
         if (!q) return true;
         const locks = (w.lockMonths||[]).join(",");
         const hay = [
           (w.wallet||"").toLowerCase(),
           String(w.events||""),
           locks,
-          String(w.totalUsd||""),
+          String((w.totalUsdAll ?? w.totalUsd) || ""),
           String(w.lastUsd||""),
           String(w.lastLockMonths||""),
           String(w.ethTxCount||""),
@@ -543,7 +552,6 @@
 
     // live re-render on filters
     document.getElementById("walletFilter").addEventListener("change", ()=> latestData && renderWallets(latestData));
-    document.getElementById("hideZero").addEventListener("change", ()=> latestData && renderWallets(latestData));
     document.getElementById("search").addEventListener("input", ()=> latestData && renderWallets(latestData));
   </script>
 </body>
