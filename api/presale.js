@@ -21,6 +21,13 @@ export default async function handler(req, res) {
     // =====================
     // CONFIG
     // =====================
+    // Payment tokens (Ethereum mainnet)
+    const TOKENS = {
+      USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606EB48",
+      ETH: "ETH"
+    };
+
     const CONTRACT = "0x10Cd25B8fA6f97356C82aAb8da039C3D7eF18401";
     const EVENT_TOPIC =
       "0x95cfdb8b2e91654ec715d9403064639685780d9bc570c4c0732886c210481b9f";
@@ -74,10 +81,24 @@ export default async function handler(req, res) {
       const usd = parseUSD(chunks[0]);
       const lockMonths = hexToInt(chunks[2]);
 
+      // Detect payment method
+      let payment = "UNKNOWN";
+
+      // ERC20 Transfer logs contain token address
+      if (lg.address.toLowerCase() === TOKENS.USDT.toLowerCase()) {
+        payment = "USDT";
+      } else if (lg.address.toLowerCase() === TOKENS.USDC.toLowerCase()) {
+        payment = "USDC";
+      } else {
+        // Presale contract receiving ETH
+        payment = "ETH";
+      }
+
       events.push({
         wallet,
         usd,
         lockMonths,
+        payment,
         tx: lg.transactionHash,
       });
     }
@@ -88,8 +109,18 @@ export default async function handler(req, res) {
     const wallets = {};
     let totalUsd = 0;
 
+    const paymentTotals = {
+      USDT: 0,
+      USDC: 0,
+      ETH: 0,
+    };
+    let totalUsdNoEth = 0;
+
     for (const e of events) {
       totalUsd += e.usd;
+      if (e.payment !== "ETH") {
+        totalUsdNoEth += e.usd;
+      }
       if (!wallets[e.wallet]) {
         wallets[e.wallet] = {
           wallet: e.wallet,
@@ -99,6 +130,9 @@ export default async function handler(req, res) {
         };
       }
       wallets[e.wallet].totalUsd += e.usd;
+      if (paymentTotals[e.payment] !== undefined) {
+        paymentTotals[e.payment] += e.usd;
+      }
       wallets[e.wallet].events += 1;
       wallets[e.wallet].lockMonths.push(e.lockMonths);
     }
@@ -113,6 +147,12 @@ export default async function handler(req, res) {
       total_events: events.length,
       unique_wallets: walletList.length,
       total_usd: Number(totalUsd.toFixed(2)),
+      total_usd_without_eth: Number(totalUsdNoEth.toFixed(2)),
+      payment_totals_usd: {
+        USDT: Number(paymentTotals.USDT.toFixed(2)),
+        USDC: Number(paymentTotals.USDC.toFixed(2)),
+        ETH: Number(paymentTotals.ETH.toFixed(2)),
+      },
       wallets: walletList,
     });
 
