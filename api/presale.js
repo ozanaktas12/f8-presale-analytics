@@ -68,7 +68,13 @@ export default async function handler(req, res) {
     const parseUSD = (hex) => {
       const raw = hexToInt(hex);
       // USDT/USDC 6 decimals
-      return raw / 1_000_000;
+      const usd = raw / 1_000_000;
+
+      // ❗ Presale kuralı: tek event max 25.000 USD olabilir
+      if (usd <= 0 || usd > 25_000) {
+        return 0;
+      }
+      return usd;
     };
 
 
@@ -126,11 +132,14 @@ export default async function handler(req, res) {
       wallets[e.wallet].lockMonths.push(e.lockMonths);
 
       // ❗ SADECE BİZİM CÜZDANLAR PARA TOPLAR
-      if (isOurWallet && e.payment !== "ETH") {
-        totalUsd += e.usd;
-        totalUsdNoEth += e.usd;
-        paymentTotals.USD += e.usd;
-        wallets[e.wallet].totalUsd += e.usd;
+      if (isOurWallet) {
+        // usd 0 ise (ETH ya da geçersiz event) toplama dahil etme
+        if (e.usd > 0) {
+          totalUsd += e.usd;
+          totalUsdNoEth += e.usd;
+          paymentTotals.USD += e.usd;
+          wallets[e.wallet].totalUsd += e.usd;
+        }
       }
     }
 
