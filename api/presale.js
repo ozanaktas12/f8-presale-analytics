@@ -11,8 +11,6 @@
  *  - Returns live analytics JSON
  */
 
-import fetch from "node-fetch";
-
 export default async function handler(req, res) {
   try {
     const API_KEY = process.env.ETHERSCAN_API_KEY;
@@ -28,11 +26,15 @@ export default async function handler(req, res) {
       "0x95cfdb8b2e91654ec715d9403064639685780d9bc570c4c0732886c210481b9f";
 
     const ETHERSCAN_URL =
-      "https://api.etherscan.io/api?module=logs&action=getLogs" +
-      `&address=${CONTRACT}` +
-      `&topic0=${EVENT_TOPIC}` +
-      `&fromBlock=0&toBlock=latest` +
-      `&apikey=${API_KEY}`;
+  "https://api.etherscan.io/v2/api" +
+  "?chainid=1" +
+  "&module=logs" +
+  "&action=getLogs" +
+  `&address=${CONTRACT}` +
+  `&topic0=${EVENT_TOPIC}` +
+  "&fromBlock=0" +
+  "&toBlock=latest" +
+  `&apikey=${API_KEY}`;
 
     // =====================
     // FETCH LOGS
