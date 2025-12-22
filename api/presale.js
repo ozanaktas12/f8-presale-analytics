@@ -11,6 +11,18 @@
  *  - Returns live analytics JSON
  */
 
+import fs from "fs";
+import path from "path";
+
+// Load our wallets (data_check.txt)
+const OUR_WALLETS = new Set(
+  fs
+    .readFileSync(path.join(process.cwd(), "data_check.txt"), "utf-8")
+    .split("\n")
+    .map(w => w.trim().toLowerCase())
+    .filter(Boolean)
+);
+
 export default async function handler(req, res) {
   try {
     const API_KEY = process.env.ETHERSCAN_API_KEY;
@@ -135,22 +147,29 @@ export default async function handler(req, res) {
     let totalUsdNoEth = 0;
 
     for (const e of events) {
-      totalUsd += e.usd;
-      if (e.payment !== "ETH") {
-        totalUsdNoEth += e.usd;
-      }
+      const isOurWallet = OUR_WALLETS.has(e.wallet.toLowerCase());
+
+      // Wallet objesi (para toplamasak bile tutuyoruz)
       if (!wallets[e.wallet]) {
         wallets[e.wallet] = {
           wallet: e.wallet,
           totalUsd: 0,
           events: 0,
           lockMonths: [],
+          is_ours: isOurWallet,
         };
       }
-      wallets[e.wallet].totalUsd += e.usd;
-      paymentTotals.USD += e.usd;
+
       wallets[e.wallet].events += 1;
       wallets[e.wallet].lockMonths.push(e.lockMonths);
+
+      // ❗ SADECE BİZİM CÜZDANLAR PARA TOPLAR
+      if (isOurWallet && e.payment !== "ETH") {
+        totalUsd += e.usd;
+        totalUsdNoEth += e.usd;
+        paymentTotals.USD += e.usd;
+        wallets[e.wallet].totalUsd += e.usd;
+      }
     }
 
     const walletList = Object.values(wallets);

@@ -338,14 +338,45 @@ def main():
     in_usd = float(df.loc[df["in_our_list"], "usd_amount"].sum())
     out_usd = float(df.loc[~df["in_our_list"], "usd_amount"].sum())
 
+    # =========================
+    # SITE İLE AYNI HESAPLAMA
+    # (wallet başına yalnızca SON bid geçerli)
+    # =========================
+    df_last_bid = (
+        df.sort_values("blockNumber")
+          .groupby("wallet", as_index=False)
+          .tail(1)
+    )
+
+    ui_total_usd = float(df_last_bid["usd_amount"].sum())
+    ui_in_usd = float(df_last_bid.loc[df_last_bid["in_our_list"], "usd_amount"].sum())
+    ui_out_usd = float(df_last_bid.loc[~df_last_bid["in_our_list"], "usd_amount"].sum())
+
+    # =========================
+    # UNIQUE WALLET BAZINDA TOPLAM USD
+    # (wallet başına tek kez, wallet içi event'ler toplanıp sonra wallet'lar toplanır)
+    # =========================
+    unique_wallet_totals = (df.groupby(["wallet", "in_our_list"], as_index=False)
+                              .agg(wallet_usd=("usd_amount", "sum")))
+
+    unique_total_usd = float(unique_wallet_totals["wallet_usd"].sum())
+    unique_in_usd = float(unique_wallet_totals.loc[unique_wallet_totals["in_our_list"], "wallet_usd"].sum())
+    unique_out_usd = float(unique_wallet_totals.loc[~unique_wallet_totals["in_our_list"], "wallet_usd"].sum())
+
     print("\n================= GENEL ÖZET =================")
     print(f"Toplam event:                 {total_events}")
     print(f"Toplam unique wallet:         {total_unique}")
     print(f"Bizde OLAN unique wallet:     {in_unique}")
     print(f"Bizde OLMAYAN unique wallet:  {out_unique}")
-    print(f"Toplam yatırılan (USD):       {_fmt_usd(total_usd)}")
-    print(f"Bizim listemiz (USD):         {_fmt_usd(in_usd)}")
-    print(f"Bizim DIŞIMIZ (USD):          {_fmt_usd(out_usd)}")
+    print(f"Toplam yatırılan (USD):       {_fmt_usd(ui_total_usd)}  [SITE İLE AYNI]")
+    print(f"Bizim listemiz (USD):         {_fmt_usd(ui_in_usd)}")
+    print(f"Bizim DIŞIMIZ (USD):          {_fmt_usd(ui_out_usd)}")
+    print("\n--- DEBUG (event bazlı brüt toplam) ---")
+    print(f"Event bazlı toplam (USD):     {_fmt_usd(total_usd)}")
+    print("\n--- UNIQUE WALLET BAZINDA (wallet başına tek kez) ---")
+    print(f"Unique wallet toplam (USD):   {_fmt_usd(unique_total_usd)}")
+    print(f"Bizde OLAN unique (USD):      {_fmt_usd(unique_in_usd)}")
+    print(f"Bizde OLMAYAN unique (USD):   {_fmt_usd(unique_out_usd)}")
 
     print("\n================= 21 ARALIK 2025 20:25 SONRASI =================")
     print(f"Unique wallet (toplam):       {after_unique_total}")
@@ -418,6 +449,8 @@ def main():
     wl_in.to_csv("presale_wallet_lockups_in.csv", index=False)
     wl_out.to_csv("presale_wallet_lockups_out.csv", index=False)
     wallet_totals.to_csv("presale_wallet_totals.csv", index=False)
+    df_last_bid.to_csv("presale_wallet_last_bid_ui_style.csv", index=False)
+    unique_wallet_totals.to_csv("presale_unique_wallet_totals.csv", index=False)
     df_after_cutoff.to_csv("presale_events_after_2025_12_21_2025.csv", index=False)
 
     unknown_wallets = sorted(set(df.loc[~df["in_our_list"], "wallet"].unique()))
@@ -431,6 +464,8 @@ def main():
     print(" - presale_wallet_lockups_in.csv")
     print(" - presale_wallet_lockups_out.csv")
     print(" - presale_wallet_totals.csv")
+    print(" - presale_unique_wallet_totals.csv")
+    print(" - presale_wallet_last_bid_ui_style.csv")
     print(" - wallets_not_in_data_check.txt")
 
     # Decode debug: hangi slot/decimals seçilmiş görmek istersen
