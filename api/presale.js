@@ -88,11 +88,11 @@ export default async function handler(req, res) {
 
       const ethValue = parseInt(txJson.result.value, 16);
 
-      // 2️⃣ ETH varsa → ETH kabul et
+      // 2️⃣ ETH varsa → ŞU ANLIK GÖRMEZDEN GEL
       if (ethValue > 0) {
+        // ETH yatırımları yok sayılıyor
         payment = "ETH";
-        const ethAmount = weiToEth(txJson.result.value);
-        usd = ethAmount * ETH_USD_PRICE;
+        usd = 0;
 
       } else {
         // 3️⃣ ETH yoksa → USD (hangi stablecoin olduğu umrumuzda değil)
@@ -131,7 +131,6 @@ export default async function handler(req, res) {
 
     const paymentTotals = {
       USD: 0,
-      ETH: 0,
     };
     let totalUsdNoEth = 0;
 
@@ -149,9 +148,7 @@ export default async function handler(req, res) {
         };
       }
       wallets[e.wallet].totalUsd += e.usd;
-      if (paymentTotals[e.payment] !== undefined) {
-        paymentTotals[e.payment] += e.usd;
-      }
+      paymentTotals.USD += e.usd;
       wallets[e.wallet].events += 1;
       wallets[e.wallet].lockMonths.push(e.lockMonths);
     }
@@ -169,7 +166,6 @@ export default async function handler(req, res) {
       total_usd_without_eth: Number(totalUsdNoEth.toFixed(2)),
       payment_totals_usd: {
         USD: Number(paymentTotals.USD.toFixed(2)),
-        ETH: Number(paymentTotals.ETH.toFixed(2)),
       },
       wallets: walletList,
     });
