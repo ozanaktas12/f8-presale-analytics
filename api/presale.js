@@ -14,6 +14,54 @@
 import fs from "fs";
 import path from "path";
 
+// =====================
+// Vercel runtime safety: cache + retry
+// =====================
+let __CACHE = { at: 0, ttlMs: 25_000, data: null };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const fetchJsonWithRetry = async (url, { tries = 4, timeoutMs = 10_000 } = {}) => {
+  let lastErr = null;
+
+  for (let i = 0; i < tries; i++) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { accept: "application/json" },
+      });
+
+      const json = await res.json().catch(() => null);
+
+      // Etherscan sometimes returns status 0 with busy/timeout message
+      const isEtherscanBusy =
+        json &&
+        json.status === "0" &&
+        typeof json.message === "string" &&
+        json.message.toLowerCase().includes("timeout");
+
+      if (!res.ok || isEtherscanBusy) {
+        const msg = json ? JSON.stringify(json) : `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+
+      return json;
+    } catch (e) {
+      lastErr = e;
+      // exponential backoff with jitter
+      const backoff = Math.min(1200 * Math.pow(2, i), 6500) + Math.floor(Math.random() * 250);
+      await sleep(backoff);
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  throw lastErr || new Error("fetchJsonWithRetry failed");
+};
+
 // Load our wallets (data_check.txt)
 const OUR_WALLETS = new Set(
   fs
@@ -25,6 +73,11 @@ const OUR_WALLETS = new Set(
 
 export default async function handler(req, res) {
   try {
+    // Serve cache if fresh to avoid Etherscan stampede
+    if (__CACHE.data && (Date.now() - __CACHE.at) < __CACHE.ttlMs) {
+      return res.status(200).json(__CACHE.data);
+    }
+
     const API_KEY = process.env.ETHERSCAN_API_KEY;
     if (!API_KEY) {
       return res.status(500).json({ error: "Missing ETHERSCAN_API_KEY" });
@@ -51,8 +104,7 @@ export default async function handler(req, res) {
     // =====================
     // FETCH LOGS
     // =====================
-    const response = await fetch(ETHERSCAN_URL);
-    const data = await response.json();
+    const data = await fetchJsonWithRetry(ETHERSCAN_URL, { tries: 4, timeoutMs: 10_000 });
 
     if (data.status !== "1") {
       return res.status(500).json({ error: "Etherscan error", details: data });
@@ -257,12 +309,15 @@ const overallPaymentTotals = { USD: 0 };
       for (const t of txs) {
         if (!t.tx) continue;
 
+        // Only investigate ETH when decoded USD is 0 (likely ETH payment)
+        if (Number(t.usd || 0) > 0) continue;
+
         let txObj = txCache.get(t.tx);
         if (!txObj) {
-          const txRes = await fetch(
-            `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${t.tx}&apikey=${API_KEY}`
+          const txJson = await fetchJsonWithRetry(
+            `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${t.tx}&apikey=${API_KEY}`,
+            { tries: 3, timeoutMs: 10_000 }
           );
-          const txJson = await txRes.json();
           txObj = txJson && txJson.result ? txJson.result : null;
           txCache.set(t.tx, txObj);
         }
@@ -305,7 +360,7 @@ const overallPaymentTotals = { USD: 0 };
     // =====================
     // RESPONSE
     // =====================
-    return res.status(200).json({
+    const payload = {
       updated_at: new Date().toISOString(),
 
       // raw event stats
@@ -336,7 +391,12 @@ const overallPaymentTotals = { USD: 0 };
       our_total_usd_last_bid: ourTotalUsdLastBid,
 
       wallets: walletList,
-    });
+    };
+
+    // Cache for a short time to reduce Etherscan timeouts
+    __CACHE = { ...__CACHE, at: Date.now(), data: payload };
+
+    return res.status(200).json(payload);
 
   } catch (err) {
     return res.status(500).json({
