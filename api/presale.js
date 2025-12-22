@@ -176,12 +176,16 @@ export default async function handler(req, res) {
     // AGGREGATIONS
     // =====================
     const wallets = {};
-    let totalUsd = 0;
 
-    const paymentTotals = {
-      USD: 0,
-    };
-    let totalUsdNoEth = 0;
+// OUR totals (only data_check.txt wallets)
+let ourTotalUsd = 0;
+let ourTotalUsdNoEth = 0;
+const ourPaymentTotals = { USD: 0 };
+
+// OVERALL totals (all wallets)
+let overallTotalUsd = 0;
+let overallTotalUsdNoEth = 0;
+const overallPaymentTotals = { USD: 0 };
 
     for (const e of events) {
       const isOurWallet = OUR_WALLETS.has(e.wallet.toLowerCase());
@@ -222,12 +226,19 @@ export default async function handler(req, res) {
         wallets[e.wallet]._txs.push({ tx: e.tx, blockNumber: e.blockNumber, usd: e.usd });
       }
 
-      // ❗ SADECE BİZİM CÜZDANLARIN USD’LERİ TOPLANSIN (Python “event sum” style)
+      // OVERALL totals (all wallets)
+      if (e.usd > 0) {
+        overallTotalUsd += e.usd;
+        overallTotalUsdNoEth += e.usd;
+        overallPaymentTotals.USD += e.usd;
+      }
+
+      // OUR totals (only our wallets)
       if (isOurWallet && e.usd > 0) {
-        totalUsd += e.usd;
-        totalUsdNoEth += e.usd;
-        paymentTotals.USD += e.usd;
-        wallets[e.wallet].totalUsd += e.usd;
+        ourTotalUsd += e.usd;
+        ourTotalUsdNoEth += e.usd;
+        ourPaymentTotals.USD += e.usd;
+        wallets[e.wallet].totalUsd += e.usd; // keep per-wallet totals only for our wallets
       }
     }
 
@@ -301,12 +312,24 @@ export default async function handler(req, res) {
       total_events: events.length,
       unique_wallets: walletList.length,
 
-      // OUR totals (event-sum)
-      total_usd: Number(totalUsd.toFixed(2)),
-      total_usd_without_eth: Number(totalUsdNoEth.toFixed(2)),
-      payment_totals_usd: {
-        USD: Number(paymentTotals.USD.toFixed(2)),
+      // OVERALL totals (all wallets)
+      overall_total_usd: Number(overallTotalUsd.toFixed(2)),
+      overall_total_usd_without_eth: Number(overallTotalUsdNoEth.toFixed(2)),
+      overall_payment_totals_usd: {
+        USD: Number(overallPaymentTotals.USD.toFixed(2)),
       },
+
+      // OUR totals (only data_check.txt wallets)
+      our_total_usd: Number(ourTotalUsd.toFixed(2)),
+      our_total_usd_without_eth: Number(ourTotalUsdNoEth.toFixed(2)),
+      our_payment_totals_usd: {
+        USD: Number(ourPaymentTotals.USD.toFixed(2)),
+      },
+
+      // Backward-compatible aliases (old keys)
+      total_usd: Number(ourTotalUsd.toFixed(2)),
+      total_usd_without_eth: Number(ourTotalUsdNoEth.toFixed(2)),
+      payment_totals_usd: { USD: Number(ourPaymentTotals.USD.toFixed(2)) },
 
       // OUR totals (site-style last bid per wallet)
       our_unique_wallets: ourUniqueWallets,
