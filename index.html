@@ -144,6 +144,13 @@
       border-collapse:collapse;
       font-size:13px;
     }
+    /* Prevent scroll chaining: when you scroll the wallet list, the page won't also scroll */
+    .tableWrap{
+      max-height: 520px;
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
     thead th{
       text-align:left;
       padding:12px 14px;
@@ -229,10 +236,14 @@
       <div class="sectionHead">
         <h2>Wallet Listesi</h2>
         <div class="tools">
-          <label class="toggle">
-            <input type="checkbox" id="onlyOurs" checked />
-            Sadece bizim cüzdanlar
-          </label>
+          <span class="toggle" style="gap:10px;">
+            <span class="muted" style="font-weight:700;">Göster</span>
+            <select id="walletFilter" style="padding:8px 10px; border-radius:10px; border:1px solid var(--border); background: rgba(0,0,0,.18); color: var(--text);">
+              <option value="ours" selected>Bizim cüzdanlar</option>
+              <option value="others">Bizde olmayanlar</option>
+              <option value="all">Hepsi</option>
+            </select>
+          </span>
           <label class="toggle">
             <input type="checkbox" id="hideZero" checked />
             0 USD olanları gizle
@@ -242,7 +253,7 @@
         </div>
       </div>
 
-      <div style="max-height: 520px; overflow:auto;">
+      <div class="tableWrap">
         <table>
           <thead>
             <tr>
@@ -354,7 +365,7 @@
 
     function renderWallets(d){
       const body = document.getElementById("walletBody");
-      const onlyOurs = document.getElementById("onlyOurs").checked;
+      const walletFilter = document.getElementById("walletFilter").value; // ours | others | all
       const hideZero = document.getElementById("hideZero").checked;
       const q = (document.getElementById("search").value || "").trim().toLowerCase();
 
@@ -371,7 +382,8 @@
       });
 
       rows = rows.filter(w=>{
-        if (onlyOurs && !w.is_ours) return false;
+        if (walletFilter === "ours" && !w.is_ours) return false;
+        if (walletFilter === "others" && w.is_ours) return false;
         if (hideZero && Number(w.totalUsd||0) <= 0) return false;
 
         if (!q) return true;
@@ -458,13 +470,14 @@
         setStatus("bad", "Önce Başlat");
         return;
       }
-      const onlyOurs = document.getElementById("onlyOurs").checked;
+      const walletFilter = document.getElementById("walletFilter").value; // ours | others | all
       const hideZero = document.getElementById("hideZero").checked;
       const q = (document.getElementById("search").value || "").trim().toLowerCase();
 
       let rows = (latestData.wallets || []).slice();
       rows = rows.filter(w=>{
-        if (onlyOurs && !w.is_ours) return false;
+        if (walletFilter === "ours" && !w.is_ours) return false;
+        if (walletFilter === "others" && w.is_ours) return false;
         if (hideZero && Number(w.totalUsd||0) <= 0) return false;
         if (!q) return true;
         const locks = (w.lockMonths||[]).join(",");
@@ -529,7 +542,7 @@
     }
 
     // live re-render on filters
-    document.getElementById("onlyOurs").addEventListener("change", ()=> latestData && renderWallets(latestData));
+    document.getElementById("walletFilter").addEventListener("change", ()=> latestData && renderWallets(latestData));
     document.getElementById("hideZero").addEventListener("change", ()=> latestData && renderWallets(latestData));
     document.getElementById("search").addEventListener("input", ()=> latestData && renderWallets(latestData));
   </script>
