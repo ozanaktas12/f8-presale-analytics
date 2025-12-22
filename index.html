@@ -1,37 +1,537 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <title>Presale Analyzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>F8 Presale Analytics</title>
   <style>
-    body { font-family: Arial; padding: 40px; }
-    button { padding: 12px 20px; font-size: 16px; cursor: pointer; }
-    pre { background: #111; color: #0f0; padding: 20px; margin-top: 20px; }
+    :root{
+      --bg:#0b0f17;
+      --panel:#111827;
+      --panel2:#0f172a;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --border:rgba(255,255,255,.08);
+      --accent:#22c55e;
+      --accent2:#38bdf8;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background: radial-gradient(1200px 700px at 20% 0%, rgba(56,189,248,.12), transparent 55%),
+                  radial-gradient(900px 600px at 80% 10%, rgba(34,197,94,.12), transparent 60%),
+                  var(--bg);
+      color:var(--text);
+    }
+    a{color:inherit; text-decoration:none}
+    .container{max-width:1200px; margin:0 auto; padding:28px 18px 70px}
+    header{
+      display:flex; gap:16px; align-items:flex-start; justify-content:space-between;
+      padding:18px 18px; border:1px solid var(--border); border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+    }
+    .title h1{margin:0; font-size:20px; letter-spacing:.2px}
+    .title p{margin:6px 0 0; color:var(--muted); font-size:13px}
+    .controls{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;
+    }
+    button{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:12px;
+      font-weight:600;
+      cursor:pointer;
+      transition: .15s ease;
+      display:inline-flex; gap:8px; align-items:center;
+    }
+    button:hover{transform: translateY(-1px); border-color: rgba(255,255,255,.16)}
+    button.primary{
+      background: linear-gradient(180deg, rgba(34,197,94,.22), rgba(34,197,94,.10));
+      border-color: rgba(34,197,94,.35);
+    }
+    button:disabled{opacity:.6; cursor:not-allowed; transform:none}
+    .pill{
+      font-size:12px; color:var(--muted);
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.02);
+      padding:8px 10px; border-radius:999px;
+      display:inline-flex; gap:8px; align-items:center;
+    }
+    .dot{width:8px; height:8px; border-radius:50%}
+    .dot.ok{background:var(--accent)}
+    .dot.bad{background:var(--danger)}
+    .dot.wait{background:var(--warn)}
+    .grid{
+      margin-top:18px;
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:14px;
+    }
+    .card{
+      grid-column: span 3;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(17,24,39,.85), rgba(15,23,42,.7));
+      box-shadow: var(--shadow);
+      padding:14px 14px;
+      min-height:92px;
+    }
+    .card h3{margin:0; font-size:12px; color:var(--muted); font-weight:700; letter-spacing:.35px; text-transform:uppercase}
+    .card .value{margin-top:8px; font-size:22px; font-weight:800}
+    .card .sub{margin-top:6px; font-size:12px; color:var(--muted)}
+    .card.wide{grid-column: span 6}
+    .card.full{grid-column: 1 / -1}
+    @media (max-width: 980px){
+      .card{grid-column: span 6}
+      .card.wide{grid-column: span 12}
+    }
+    @media (max-width: 560px){
+      header{flex-direction:column; align-items:stretch}
+      .controls{justify-content:flex-start}
+      .card{grid-column: span 12}
+    }
+
+    .section{
+      margin-top:14px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background: rgba(255,255,255,.02);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .sectionHead{
+      padding:12px 14px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+      border-bottom:1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+    .sectionHead h2{margin:0; font-size:14px}
+    .tools{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .tools input{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.18);
+      color:var(--text);
+      min-width: 240px;
+      outline:none;
+    }
+    .toggle{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.18);
+      color:var(--text);
+      cursor:pointer;
+      user-select:none;
+      font-weight:600;
+      font-size:13px;
+    }
+    .toggle input{accent-color: var(--accent)}
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+    }
+    thead th{
+      text-align:left;
+      padding:12px 14px;
+      color:var(--muted);
+      font-size:11px;
+      letter-spacing:.3px;
+      text-transform:uppercase;
+      border-bottom:1px solid var(--border);
+      background: rgba(0,0,0,.12);
+      position:sticky; top:0;
+      z-index:1;
+    }
+    tbody td{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      vertical-align:middle;
+    }
+    tbody tr:hover{background: rgba(56,189,248,.06)}
+    .mono{font-family:var(--mono)}
+    .right{text-align:right}
+    .badge{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:6px 10px; border-radius:999px;
+      font-size:12px; font-weight:700;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+    }
+    .badge.ours{border-color: rgba(34,197,94,.35); color:#bbf7d0; background: rgba(34,197,94,.12)}
+    .badge.other{border-color: rgba(239,68,68,.35); color:#fecaca; background: rgba(239,68,68,.10)}
+    .btnMini{
+      padding:6px 10px;
+      border-radius:10px;
+      font-size:12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      cursor:pointer;
+    }
+    .btnMini:hover{border-color: rgba(255,255,255,.16)}
+    .muted{color:var(--muted)}
+    .errorBox{
+      margin-top:14px;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid rgba(239,68,68,.35);
+      background: rgba(239,68,68,.10);
+      display:none;
+    }
+    .errorBox.show{display:block}
+    .small{font-size:12px}
+    .foot{
+      margin-top:14px;
+      color:var(--muted);
+      font-size:12px;
+      display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    }
   </style>
 </head>
 <body>
+  <div class="container">
 
-  <h1>Presale Live Data</h1>
-  <button onclick="loadData()">Başlat</button>
+    <header>
+      <div class="title">
+        <h1>F8 Presale Analytics</h1>
+        <p>Butona basınca canlı olarak Etherscan’dan çekilir. <span class="mono">/api/presale</span></p>
+      </div>
+      <div class="controls">
+        <span class="pill" id="statusPill"><span class="dot wait"></span><span id="statusText">Hazır</span></span>
+        <button class="primary" id="startBtn" onclick="loadData()">Başlat</button>
+        <button id="refreshBtn" onclick="loadData()" disabled>Yenile</button>
+      </div>
+    </header>
 
-  <pre id="output">Veri bekleniyor...</pre>
+    <div class="errorBox" id="errorBox">
+      <div style="font-weight:800; margin-bottom:6px">Hata</div>
+      <div class="mono small" id="errorText"></div>
+    </div>
+
+    <div class="grid" id="cards">
+      <!-- Cards injected by JS -->
+    </div>
+
+    <div class="section">
+      <div class="sectionHead">
+        <h2>Wallet Listesi</h2>
+        <div class="tools">
+          <label class="toggle">
+            <input type="checkbox" id="onlyOurs" checked />
+            Sadece bizim cüzdanlar
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="hideZero" checked />
+            0 USD olanları gizle
+          </label>
+          <input id="search" placeholder="Ara: wallet / lock / usd (örn: 0xabc, 12, 500)" />
+          <button class="btnMini" onclick="downloadCsv()">CSV indir</button>
+        </div>
+      </div>
+
+      <div style="max-height: 520px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Wallet</th>
+              <th>Bizim?</th>
+              <th class="right">Events</th>
+              <th>Lock Months</th>
+              <th class="right">Total USD</th>
+              <th class="right">Last USD</th>
+              <th class="right">Last Lock</th>
+              <th class="right">ETH Tx</th>
+              <th class="right">Total ETH</th>
+              <th class="right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="walletBody">
+            <tr><td class="muted" colspan="10" style="padding:18px 14px;">Veri bekleniyor…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="foot">
+      <div id="lastUpdated" class="mono">updated_at: -</div>
+      <div class="mono">Contract: <a id="contractLink" target="_blank" rel="noreferrer">0x10Cd25B8…</a></div>
+    </div>
+
+  </div>
 
   <script>
-    async function loadData() {
-      document.getElementById("output").textContent = "Veri çekiliyor...";
+    const CONTRACT = "0x10Cd25B8fA6f97356C82aAb8da039C3D7eF18401";
+    document.getElementById("contractLink").href = `https://etherscan.io/address/${CONTRACT}`;
 
-      try {
-        const res = await fetch("/api/presale");
-        const data = await res.json();
+    const nfUSD = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+    const nfINT = new Intl.NumberFormat("en-US");
+    const nfETH = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
 
-        document.getElementById("output").textContent =
-          JSON.stringify(data, null, 2);
+    let latestData = null;
 
-      } catch (err) {
-        document.getElementById("output").textContent = "Hata oluştu!";
+    function setStatus(type, text){
+      const pill = document.getElementById("statusPill");
+      const dot = pill.querySelector(".dot");
+      dot.className = "dot " + (type === "ok" ? "ok" : type === "bad" ? "bad" : "wait");
+      document.getElementById("statusText").textContent = text;
+    }
+
+    function showError(message){
+      const box = document.getElementById("errorBox");
+      box.classList.add("show");
+      document.getElementById("errorText").textContent = message;
+      setStatus("bad", "Hata");
+    }
+    function clearError(){
+      const box = document.getElementById("errorBox");
+      box.classList.remove("show");
+      document.getElementById("errorText").textContent = "";
+    }
+
+    function shortAddr(a){
+      if(!a) return "-";
+      return a.slice(0,6) + "…" + a.slice(-4);
+    }
+
+    async function copy(text){
+      try{
+        await navigator.clipboard.writeText(text);
+        setStatus("ok", "Kopyalandı");
+        setTimeout(()=> setStatus("ok", "Hazır"), 800);
+      }catch(e){
+        // ignore
       }
     }
-  </script>
 
+    function card(title, value, sub){
+      return `
+        <div class="card">
+          <h3>${title}</h3>
+          <div class="value">${value}</div>
+          <div class="sub">${sub || ""}</div>
+        </div>
+      `;
+    }
+
+    function renderCards(d){
+      const cards = document.getElementById("cards");
+
+      const overall = d.overall_total_usd ?? 0;
+      const ourSum = d.our_total_usd ?? d.total_usd ?? 0;
+      const ourLast = d.our_total_usd_last_bid ?? 0;
+
+      const totalEvents = d.total_events ?? 0;
+      const uniqWallets = d.unique_wallets ?? 0;
+      const ourUniq = d.our_unique_wallets ?? 0;
+
+      cards.innerHTML = [
+        card("Overall Total (USD)", `$${nfUSD.format(overall)}`, "Tüm walletlar (event-sum)"),
+        card("Our Total (USD)", `$${nfUSD.format(ourSum)}`, "Sadece data_check.txt (event-sum)"),
+        card("Our Total (Last Bid)", `$${nfUSD.format(ourLast)}`, "Wallet başına son alım toplamı"),
+        card("Total Events", nfINT.format(totalEvents), "Presale event sayısı"),
+        card("Unique Wallets", nfINT.format(uniqWallets), "Tüm unique wallet"),
+        card("Our Unique Wallets", nfINT.format(ourUniq), "Listemizde olanlar"),
+      ].join("");
+    }
+
+    function uniqSorted(arr){
+      const s = new Set((arr || []).map(x => Number(x)).filter(x => Number.isFinite(x)));
+      return Array.from(s).sort((a,b)=>a-b);
+    }
+
+    function renderWallets(d){
+      const body = document.getElementById("walletBody");
+      const onlyOurs = document.getElementById("onlyOurs").checked;
+      const hideZero = document.getElementById("hideZero").checked;
+      const q = (document.getElementById("search").value || "").trim().toLowerCase();
+
+      let rows = (d.wallets || []).slice();
+
+      // default sorts: ours first, then by totalUsd desc, then events desc
+      rows.sort((a,b)=>{
+        const ao = a.is_ours ? 0 : 1;
+        const bo = b.is_ours ? 0 : 1;
+        if (ao !== bo) return ao - bo;
+        const at = Number(a.totalUsd||0), bt = Number(b.totalUsd||0);
+        if (bt !== at) return bt - at;
+        return Number(b.events||0) - Number(a.events||0);
+      });
+
+      rows = rows.filter(w=>{
+        if (onlyOurs && !w.is_ours) return false;
+        if (hideZero && Number(w.totalUsd||0) <= 0) return false;
+
+        if (!q) return true;
+
+        const locks = uniqSorted(w.lockMonths).join(",");
+        const hay = [
+          (w.wallet||"").toLowerCase(),
+          String(w.events||""),
+          locks,
+          String(w.totalUsd||""),
+          String(w.lastUsd||""),
+          String(w.lastLockMonths||""),
+          String(w.ethTxCount||""),
+          String(w.totalEth||""),
+        ].join(" ");
+        return hay.includes(q);
+      });
+
+      if(rows.length === 0){
+        body.innerHTML = `<tr><td class="muted" colspan="10" style="padding:18px 14px;">Filtreye uygun sonuç yok.</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = rows.map(w=>{
+        const wallet = w.wallet || "-";
+        const locks = uniqSorted(w.lockMonths);
+        const locksText = locks.length ? locks.join(", ") : "-";
+        const totalUsd = Number(w.totalUsd||0);
+        const lastUsd = Number(w.lastUsd||0);
+        const lastLock = (w.lastLockMonths ?? "-");
+        const ethTx = Number(w.ethTxCount||0);
+        const totalEth = Number(w.totalEth||0);
+
+        const badge = w.is_ours
+          ? `<span class="badge ours">OURS</span>`
+          : `<span class="badge other">OTHER</span>`;
+
+        const etherscan = `https://etherscan.io/address/${wallet}`;
+        return `
+          <tr>
+            <td class="mono"><a href="${etherscan}" target="_blank" rel="noreferrer">${shortAddr(wallet)}</a></td>
+            <td>${badge}</td>
+            <td class="right mono">${nfINT.format(w.events||0)}</td>
+            <td class="mono">${locksText}</td>
+            <td class="right mono">$${nfUSD.format(totalUsd)}</td>
+            <td class="right mono">$${nfUSD.format(lastUsd)}</td>
+            <td class="right mono">${lastLock}</td>
+            <td class="right mono">${nfINT.format(ethTx)}</td>
+            <td class="right mono">${nfETH.format(totalEth)}</td>
+            <td class="right">
+              <button class="btnMini" onclick="copy('${wallet}')">Copy</button>
+              <a class="btnMini" href="https://etherscan.io/address/${wallet}" target="_blank" rel="noreferrer" style="margin-left:6px; display:inline-block;">View</a>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function toCsv(rows){
+      const header = [
+        "wallet","is_ours","events","lockMonths","totalUsd","lastUsd","lastLockMonths","ethTxCount","totalEth"
+      ];
+      const lines = [header.join(",")];
+      for(const w of rows){
+        const locks = (w.lockMonths || []).join("|");
+        const values = [
+          w.wallet,
+          w.is_ours ? "true":"false",
+          w.events ?? 0,
+          `"${locks}"`,
+          w.totalUsd ?? 0,
+          w.lastUsd ?? 0,
+          w.lastLockMonths ?? "",
+          w.ethTxCount ?? 0,
+          w.totalEth ?? 0
+        ];
+        lines.push(values.join(","));
+      }
+      return lines.join("\n");
+    }
+
+    function downloadCsv(){
+      if(!latestData){
+        setStatus("bad", "Önce Başlat");
+        return;
+      }
+      const onlyOurs = document.getElementById("onlyOurs").checked;
+      const hideZero = document.getElementById("hideZero").checked;
+      const q = (document.getElementById("search").value || "").trim().toLowerCase();
+
+      let rows = (latestData.wallets || []).slice();
+      rows = rows.filter(w=>{
+        if (onlyOurs && !w.is_ours) return false;
+        if (hideZero && Number(w.totalUsd||0) <= 0) return false;
+        if (!q) return true;
+        const locks = (w.lockMonths||[]).join(",");
+        const hay = [
+          (w.wallet||"").toLowerCase(),
+          String(w.events||""),
+          locks,
+          String(w.totalUsd||""),
+          String(w.lastUsd||""),
+          String(w.lastLockMonths||""),
+          String(w.ethTxCount||""),
+          String(w.totalEth||""),
+        ].join(" ");
+        return hay.includes(q);
+      });
+
+      const csv = toCsv(rows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `presale_wallets_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus("ok", "CSV indirildi");
+      setTimeout(()=> setStatus("ok", "Hazır"), 900);
+    }
+
+    async function loadData() {
+      clearError();
+      const startBtn = document.getElementById("startBtn");
+      const refreshBtn = document.getElementById("refreshBtn");
+      startBtn.disabled = true;
+      refreshBtn.disabled = true;
+
+      setStatus("wait", "Çekiliyor…");
+      document.getElementById("lastUpdated").textContent = "updated_at: -";
+
+      try {
+        const res = await fetch("/api/presale", { cache: "no-store" });
+        if(!res.ok){
+          const txt = await res.text();
+          throw new Error(`HTTP ${res.status} - ${txt}`);
+        }
+        const data = await res.json();
+        latestData = data;
+
+        renderCards(data);
+        renderWallets(data);
+
+        document.getElementById("lastUpdated").textContent = `updated_at: ${data.updated_at || "-"}`;
+        setStatus("ok", "Hazır");
+        refreshBtn.disabled = false;
+
+      } catch (err) {
+        showError(err?.message || "Bilinmeyen hata");
+      } finally {
+        startBtn.disabled = false;
+      }
+    }
+
+    // live re-render on filters
+    document.getElementById("onlyOurs").addEventListener("change", ()=> latestData && renderWallets(latestData));
+    document.getElementById("hideZero").addEventListener("change", ()=> latestData && renderWallets(latestData));
+    document.getElementById("search").addEventListener("input", ()=> latestData && renderWallets(latestData));
+  </script>
 </body>
 </html>
