@@ -71,10 +71,6 @@ export default async function handler(req, res) {
       return raw / 1_000_000;
     };
 
-    const weiToEth = (weiHex) => parseInt(weiHex, 16) / 1e18;
-
-    // temporary static ETH price (same assumption as Python)
-    const ETH_USD_PRICE = 3500;
 
     // =====================
     // PARSE EVENTS
@@ -88,49 +84,15 @@ export default async function handler(req, res) {
         .replace("0x", "")
         .match(/.{64}/g);
 
+      // Python-style: amount is directly encoded
+      const usd = parseUSD(chunks[0]);
       const lockMonths = hexToInt(chunks[2]);
-      let payment = "USD";
-      let usd = 0;
-
-      // 1️⃣ Transaction bilgisi (ETH kontrolü için)
-      const txRes = await fetch(
-        `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${lg.transactionHash}&apikey=${API_KEY}`
-      );
-      const txJson = await txRes.json();
-
-      const ethValue = parseInt(txJson.result.value, 16);
-
-      // 2️⃣ ETH varsa → ŞU ANLIK GÖRMEZDEN GEL
-      if (ethValue > 0) {
-        // ETH yatırımları yok sayılıyor
-        payment = "ETH";
-        usd = 0;
-
-      } else {
-        // 3️⃣ ETH yoksa → USD (hangi stablecoin olduğu umrumuzda değil)
-        const receiptRes = await fetch(
-          `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionReceipt&txhash=${lg.transactionHash}&apikey=${API_KEY}`
-        );
-        const receiptJson = await receiptRes.json();
-        const receiptLogs = receiptJson.result.logs || [];
-
-        for (const rlg of receiptLogs) {
-          // ERC20 Transfer event
-          if (
-            rlg.topics[0] ===
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-          ) {
-            usd = parseUSD(rlg.data);
-            break;
-          }
-        }
-      }
 
       events.push({
         wallet,
         usd,
         lockMonths,
-        payment,
+        payment: "USD",
         tx: lg.transactionHash,
       });
     }
