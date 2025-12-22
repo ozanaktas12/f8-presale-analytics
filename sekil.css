@@ -1,0 +1,98 @@
+
+/* ------------------------------------------------------------------
+   sekil.css
+   Amaç: Mevcut index.html temasını BOZMADAN küçük UI polish dokunuşları.
+   Not: Bu dosya "ek" katman; ana tema hâlâ index.html içindeki <style> olabilir.
+------------------------------------------------------------------- */
+
+/* Tools satırı daha stabil */
+.tools{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-start;
+}
+.tools > *{flex:0 0 auto;}
+
+/* Input focus (çok hafif) */
+.tools input::placeholder{color: rgba(229,231,235,.45)}
+.tools input:focus{
+  border-color: rgba(56,189,248,.35);
+  box-shadow: 0 0 0 3px rgba(56,189,248,.10);
+}
+
+/* Select polish (tema dostu) */
+select{
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  height:40px;
+  padding:8px 34px 8px 10px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background: rgba(0,0,0,.18);
+  color: var(--text);
+  outline:none;
+  transition:.15s ease;
+  cursor:pointer;
+  font-weight:700;
+}
+select:focus{
+  border-color: rgba(56,189,248,.35);
+  box-shadow: 0 0 0 3px rgba(56,189,248,.10);
+}
+.selectWrap{position:relative; display:inline-flex; align-items:center;}
+.selectWrap:after{
+  content:"▾";
+  position:absolute;
+  right:12px;
+  pointer-events:none;
+  color: rgba(229,231,235,.6);
+  font-size:12px;
+}
+
+/* Toggle hizalama */
+.toggle{height:40px; line-height:18px; transition:.15s ease;}
+.toggle input{accent-color: var(--accent); width:16px; height:16px}
+
+/* Tablo: sticky head + zebra + hover */
+thead th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(0,0,0,.22);
+  backdrop-filter: blur(10px);
+}
+tbody tr:nth-child(odd){background: rgba(255,255,255,.02)}
+tbody tr:hover{background: rgba(56,189,248,.07)}
+
+/* Hücrelerde taşma olmasın */
+tbody td{white-space: nowrap;}
+td.locksCell{
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* nicer scrollbars (webkit) */
+.tableWrap::-webkit-scrollbar{height:10px; width:10px}
+.tableWrap::-webkit-scrollbar-thumb{background: rgba(255,255,255,.10); border-radius:999px}
+.tableWrap::-webkit-scrollbar-thumb:hover{background: rgba(255,255,255,.16)}
+.tableWrap::-webkit-scrollbar-track{background: rgba(0,0,0,.15)}
+
+/* Mobil: tools daha iyi kırılsın */
+@media (max-width: 560px){
+  .tools{align-items:stretch}
+  .tools input{min-width:0; width:100%}
+  .tools .toggle{width:100%; justify-content:space-between}
+  .tools .btnMini{width:100%; justify-content:center}
+  .metaPill{width:100%; justify-content:space-between}
+}
+
+/* Modal grid (eğer modal varsa) mobilde tek kolon */
+@media (max-width: 560px){
+  .kv{grid-column: 1 / -1;}
+  .backdrop{align-items:flex-end}
+  .modal{border-radius: 18px;}
+}
