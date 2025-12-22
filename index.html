@@ -5,71 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>F8 Presale Analytics</title>
   <style>
-    /* modal */
-    .backdrop{
-      position:fixed;
-      inset:0;
-      background: rgba(0,0,0,.55);
-      display:none;
-      align-items:flex-end;
-      justify-content:center;
-      padding:18px;
-      z-index:9998;
-    }
-    .backdrop.show{display:flex;}
-    .modal{
-      width:min(720px, 100%);
-      border:1px solid var(--border);
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(17,24,39,.92), rgba(15,23,42,.86));
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .modalHead{
-      padding:14px 14px;
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:10px;
-      border-bottom:1px solid var(--border);
-      background: rgba(255,255,255,.02);
-    }
-    .modalHead .mTitle{font-weight:900; font-size:14px}
-    .modalHead .mSub{color:var(--muted); font-size:12px; margin-top:4px}
-    .modalBody{
-      padding:14px 14px;
-      display:grid;
-      grid-template-columns: repeat(12, 1fr);
-      gap:12px;
-    }
-    .kv{
-      grid-column: span 6;
-      border:1px solid rgba(255,255,255,.06);
-      border-radius: 14px;
-      background: rgba(255,255,255,.02);
-      padding:12px 12px;
-    }
-    .kv .k{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px; font-weight:800}
-    .kv .v{margin-top:6px; font-weight:900}
-    .kv.full{grid-column: 1 / -1}
-    .modalFoot{
-      padding:12px 14px;
-      border-top:1px solid var(--border);
-      display:flex;
-      justify-content:flex-end;
-      gap:10px;
-      flex-wrap:wrap;
-      background: rgba(255,255,255,.02);
-    }
-    .rowClick{cursor:pointer}
-    .metaPill{
-      font-size:12px; color:var(--muted);
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.02);
-      padding:8px 10px; border-radius:999px;
-      display:inline-flex; gap:8px; align-items:center;
-      font-weight:700;
-    }
     :root{
       --bg:#0b0f17;
       --panel:#111827;
@@ -309,47 +244,9 @@
               <option value="all">Hepsi</option>
             </select>
           </span>
-          <input id="search" aria-label="Search wallets" placeholder="Ara: wallet / lock / usd (örn: 0xabc, 12, 500)" />
-          <span class="toggle" style="gap:10px;" title="Sıralama">
-            <span class="muted" style="font-weight:700;">Sort</span>
-            <span class="selectWrap">
-              <select id="sortMode" aria-label="Sort mode">
-                <option value="newest" selected>Newest</option>
-                <option value="usd">Highest USD</option>
-                <option value="events">Most Events</option>
-              </select>
-            </span>
-          </span>
-
-          <label class="toggle" title="30 saniyede bir otomatik yenile">
-            <input type="checkbox" id="autoRefresh" />
-            Auto refresh
-          </label>
-
-          <span class="metaPill" id="agePill" title="Son güncellemeden beri geçen süre">
-            <span class="dot wait"></span>
-            <span class="mono" id="ageText">-</span>
-          </span>
+          <input id="search" placeholder="Ara: wallet / lock / usd (örn: 0xabc, 12, 500)" />
           <button class="btnMini" onclick="downloadCsv()">CSV indir</button>
         </div>
-  <div class="backdrop" id="backdrop" onclick="closeModal(event)">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onclick="event.stopPropagation()">
-      <div class="modalHead">
-        <div>
-          <div class="mTitle" id="modalTitle">Wallet</div>
-          <div class="mSub mono" id="modalSub">—</div>
-        </div>
-        <button class="btnMini" onclick="closeModal()">Kapat</button>
-      </div>
-      <div class="modalBody" id="modalBody">
-        <!-- injected -->
-      </div>
-      <div class="modalFoot">
-        <button class="btnMini" id="modalCopyBtn">Copy Wallet</button>
-        <a class="btnMini" id="modalEtherscanBtn" target="_blank" rel="noreferrer">Etherscan</a>
-      </div>
-    </div>
-  </div>
       </div>
 
       <div class="tableWrap">
@@ -391,49 +288,6 @@
     const nfETH = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
 
     let latestData = null;
-    let lastUpdatedAt = null;
-    let autoTimer = null;
-
-    const LS_KEYS = {
-      filter: "f8_walletFilter",
-      search: "f8_walletSearch",
-      sort: "f8_sortMode",
-      auto: "f8_autoRefresh"
-    };
-
-    function loadPrefs(){
-      const wf = localStorage.getItem(LS_KEYS.filter);
-      const qs = localStorage.getItem(LS_KEYS.search);
-      const sm = localStorage.getItem(LS_KEYS.sort);
-      const ar = localStorage.getItem(LS_KEYS.auto);
-
-      if (wf) document.getElementById("walletFilter").value = wf;
-      if (qs !== null) document.getElementById("search").value = qs;
-      if (sm) document.getElementById("sortMode").value = sm;
-      if (ar !== null) document.getElementById("autoRefresh").checked = ar === "1";
-    }
-
-    function savePrefs(){
-      localStorage.setItem(LS_KEYS.filter, document.getElementById("walletFilter").value);
-      localStorage.setItem(LS_KEYS.search, document.getElementById("search").value || "");
-      localStorage.setItem(LS_KEYS.sort, document.getElementById("sortMode").value);
-      localStorage.setItem(LS_KEYS.auto, document.getElementById("autoRefresh").checked ? "1" : "0");
-    }
-
-    function setAgePill(){
-      const dot = document.querySelector("#agePill .dot");
-      const txt = document.getElementById("ageText");
-      if (!lastUpdatedAt){
-        dot.className = "dot wait";
-        txt.textContent = "-";
-        return;
-      }
-      const sec = Math.max(0, Math.floor((Date.now() - lastUpdatedAt) / 1000));
-      txt.textContent = sec < 90 ? `${sec}s ago` : `${Math.floor(sec/60)}m ago`;
-      dot.className = "dot " + (sec < 45 ? "ok" : sec < 120 ? "wait" : "bad");
-    }
-
-    setInterval(setAgePill, 1000);
 
     function setStatus(type, text){
       const pill = document.getElementById("statusPill");
@@ -455,51 +309,6 @@
     }
 
     function shortAddr(a){
-    function openModal(w){
-      const bd = document.getElementById("backdrop");
-      const title = document.getElementById("modalTitle");
-      const sub = document.getElementById("modalSub");
-      const body = document.getElementById("modalBody");
-      const copyBtn = document.getElementById("modalCopyBtn");
-      const esBtn = document.getElementById("modalEtherscanBtn");
-
-      const wallet = w.wallet || "-";
-      title.textContent = w.is_ours ? "Wallet (OURS)" : "Wallet (OTHER)";
-      sub.textContent = wallet;
-
-      const locks = uniqSorted(w.lockMonths).join(", ") || "-";
-      const totalUsdAll = Number((w.totalUsdAll ?? w.totalUsd) || 0);
-      const totalUsdDisplay = Number((w.totalUsdDisplay ?? 0) || 0) || (totalUsdAll > 0 ? totalUsdAll : Number(w.lastUsd || 0));
-      const isFallback = (w.totalUsdIsFallback === true) || (!(totalUsdAll > 0) && Number(w.lastUsd || 0) > 0);
-
-      body.innerHTML = `
-        <div class="kv"><div class="k">Displayed Total USD</div><div class="v mono">${isFallback ? "≈" : ""}$${nfUSD.format(totalUsdDisplay)}</div></div>
-        <div class="kv"><div class="k">Event-sum USD</div><div class="v mono">$${nfUSD.format(totalUsdAll)}</div></div>
-        <div class="kv"><div class="k">First USD</div><div class="v mono">$${nfUSD.format(Number(w.lastUsd||0))}</div></div>
-        <div class="kv"><div class="k">First Lock</div><div class="v mono">${w.lastLockMonths ?? "-"}</div></div>
-        <div class="kv"><div class="k">Events</div><div class="v mono">${nfINT.format(w.events||0)}</div></div>
-        <div class="kv"><div class="k">Locks</div><div class="v mono">${locks}</div></div>
-        <div class="kv"><div class="k">ETH Tx</div><div class="v mono">${nfINT.format(Number(w.ethTxCount||0))}</div></div>
-        <div class="kv"><div class="k">Total ETH</div><div class="v mono">${nfETH.format(Number(w.totalEth||0))}</div></div>
-        <div class="kv full"><div class="k">Latest Block</div><div class="v mono">${w.lastBlock ?? "-"}</div></div>
-      `;
-
-      copyBtn.onclick = ()=> copy(wallet);
-      esBtn.href = `https://etherscan.io/address/${wallet}`;
-
-      bd.classList.add("show");
-      document.body.style.overflow = "hidden";
-    }
-
-    function closeModal(){
-      const bd = document.getElementById("backdrop");
-      bd.classList.remove("show");
-      document.body.style.overflow = "";
-    }
-
-    document.addEventListener("keydown", (e)=>{
-      if (e.key === "Escape") closeModal();
-    });
       if(!a) return "-";
       return a.slice(0,6) + "…" + a.slice(-4);
     }
@@ -557,23 +366,20 @@
 
       let rows = (d.wallets || []).slice();
 
-      const sortMode = document.getElementById("sortMode").value; // newest | usd | events
-      // sort by selected mode
+      // default sort: newest sale first (highest lastBlock), then by displayed USD desc
       rows.sort((a,b)=>{
-        if (sortMode === "events") {
-          const ae = Number(a.events||0), be = Number(b.events||0);
-          if (be !== ae) return be - ae;
-        } else if (sortMode === "usd") {
-          const aAll = Number((a.totalUsdAll ?? a.totalUsd) || 0);
-          const bAll = Number((b.totalUsdAll ?? b.totalUsd) || 0);
-          const aDisp = Number((a.totalUsdDisplay ?? 0) || 0) || (aAll > 0 ? aAll : Number(a.lastUsd || 0));
-          const bDisp = Number((b.totalUsdDisplay ?? 0) || 0) || (bAll > 0 ? bAll : Number(b.lastUsd || 0));
-          if (bDisp !== aDisp) return bDisp - aDisp;
-        } else {
-          const ab = Number(a.lastBlock ?? -1);
-          const bb = Number(b.lastBlock ?? -1);
-          if (bb !== ab) return bb - ab; // newest first
-        }
+        const ab = Number(a.lastBlock ?? -1);
+        const bb = Number(b.lastBlock ?? -1);
+        if (bb !== ab) return bb - ab; // newest first
+
+        const aAll = Number((a.totalUsdAll ?? a.totalUsd) || 0);
+        const bAll = Number((b.totalUsdAll ?? b.totalUsd) || 0);
+
+        // Prefer backend totalUsdDisplay if present; otherwise fallback to (totalUsdAll>0 ? totalUsdAll : lastUsd)
+        const aDisp = Number((a.totalUsdDisplay ?? 0) || 0) || (aAll > 0 ? aAll : Number(a.lastUsd || 0));
+        const bDisp = Number((b.totalUsdDisplay ?? 0) || 0) || (bAll > 0 ? bAll : Number(b.lastUsd || 0));
+        if (bDisp !== aDisp) return bDisp - aDisp;
+
         // final stable tie-breaker
         return String(a.wallet||"").localeCompare(String(b.wallet||""));
       });
@@ -624,7 +430,7 @@
 
         const etherscan = `https://etherscan.io/address/${wallet}`;
         return `
-          <tr class="rowClick" onclick='openModal(${JSON.stringify(w).replace(/</g,"\\u003c")})'>
+          <tr>
             <td class="mono"><a href="${etherscan}" target="_blank" rel="noreferrer">${shortAddr(wallet)}</a></td>
             <td>${badge}</td>
             <td class="right mono">${nfINT.format(w.events||0)}</td>
@@ -635,8 +441,8 @@
             <td class="right mono">${nfINT.format(ethTx)}</td>
             <td class="right mono">${nfETH.format(totalEth)}</td>
             <td class="right">
-              <button class="btnMini" onclick="event.stopPropagation(); copy('${wallet}')">Copy</button>
-              <a class="btnMini" href="https://etherscan.io/address/${wallet}" onclick="event.stopPropagation()" target="_blank" rel="noreferrer" style="margin-left:6px; display:inline-block;">View</a>
+              <button class="btnMini" onclick="copy('${wallet}')">Copy</button>
+              <a class="btnMini" href="https://etherscan.io/address/${wallet}" target="_blank" rel="noreferrer" style="margin-left:6px; display:inline-block;">View</a>
             </td>
           </tr>
         `;
@@ -729,7 +535,6 @@
         }
         const data = await res.json();
         latestData = data;
-        lastUpdatedAt = Date.now();
 
         renderCards(data);
         renderWallets(data);
@@ -745,40 +550,9 @@
       }
     }
 
-    // load saved prefs on first load
-    loadPrefs();
-
-    document.getElementById("walletFilter").addEventListener("change", ()=>{
-      savePrefs();
-      latestData && renderWallets(latestData);
-    });
-
-    document.getElementById("sortMode").addEventListener("change", ()=>{
-      savePrefs();
-      latestData && renderWallets(latestData);
-    });
-
-    document.getElementById("search").addEventListener("input", ()=>{
-      savePrefs();
-      latestData && renderWallets(latestData);
-    });
-
-    document.getElementById("autoRefresh").addEventListener("change", ()=>{
-      savePrefs();
-      if (autoTimer) clearInterval(autoTimer);
-      if (document.getElementById("autoRefresh").checked) {
-        autoTimer = setInterval(()=> loadData(), 30_000);
-        toast("ok", "Auto refresh", "30s enabled");
-      } else {
-        autoTimer = null;
-        toast("wait", "Auto refresh", "disabled");
-      }
-    });
-
-    // If autoRefresh was enabled from prefs, start it
-    if (document.getElementById("autoRefresh").checked) {
-      autoTimer = setInterval(()=> loadData(), 30_000);
-    }
+    // live re-render on filters
+    document.getElementById("walletFilter").addEventListener("change", ()=> latestData && renderWallets(latestData));
+    document.getElementById("search").addEventListener("input", ()=> latestData && renderWallets(latestData));
   </script>
 </body>
 </html>
