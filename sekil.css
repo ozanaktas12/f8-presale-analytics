@@ -60,15 +60,24 @@ select:focus{
 thead th{
   position: sticky;
   top: 0;
-  z-index: 2;
-  background: rgba(0,0,0,.22);
+  z-index: 5;
+
+  /* Daha opak bir header: arkadaki yazılar görünmesin */
+  background: rgba(17,24,39,.82);
   backdrop-filter: blur(10px);
+
+  /* Ayrıştırıcı çizgi + hafif gölge */
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 8px 18px rgba(0,0,0,.22);
 }
 tbody tr:nth-child(odd){background: rgba(255,255,255,.02)}
 tbody tr:hover{background: rgba(56,189,248,.07)}
 
 /* Hücrelerde taşma olmasın */
-tbody td{white-space: nowrap;}
+tbody td{
+  white-space: nowrap;
+  background-clip: padding-box;
+}
 td.locksCell{
   max-width: 240px;
   overflow: hidden;
@@ -95,4 +104,9 @@ td.locksCell{
   .kv{grid-column: 1 / -1;}
   .backdrop{align-items:flex-end}
   .modal{border-radius: 18px;}
+}
+/* Sticky header için konteyner */
+.tableWrap{
+  position: relative;
+  background: rgba(0,0,0,.10);
 }
